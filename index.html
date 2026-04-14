@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+  <meta name="apple-mobile-web-app-title" content="Xelera Calc"/>
+  <meta name="theme-color" content="#1e5fa8"/>
+  <title>Xelera Water Treatment Calculator</title>
+  <link rel="manifest" href="./manifest.json"/>
+  <link rel="apple-touch-icon" href="./icon-512.png"/>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: #f4f6f8; font-family: sans-serif; }
+    #root { min-height: 100%; }
+    #loading { display:flex; align-items:center; justify-content:center; height:100vh; flex-direction:column; gap:16px; color:#1e5fa8; }
+    #loading .spinner { width:40px; height:40px; border:4px solid #e8f0fb; border-top:4px solid #1e5fa8; border-radius:50%; animation:spin 0.8s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    input[type=number] { -moz-appearance: textfield; }
+  </style>
+</head>
+<body>
+  <div id="root">
+    <div id="loading">
+      <div class="spinner"></div>
+      <div style="font-size:15px;font-weight:600;">Loading Xelera Calculator...</div>
+    </div>
+  </div>
+
+  <!-- Load React first as regular scripts -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+  <script>
+    // Dynamically load Babel, then transform and run our JSX app
+    (function() {
+      var babelScript = document.createElement('script');
+      babelScript.src = 'https://unpkg.com/@babel/standalone/babel.min.js';
+      babelScript.onload = function() {
+        try {
+          var appSource = `
+// ─── Xelera brand + color tokens ─────────────────────────────────────────────
+const XELERA = {
+  name: "Xelera, Inc.",
+  address: "7209 E WT Harris Blvd., Ste J #304",
+  city: "Charlotte, NC 28227",
+  phone: "+1-540-389-5232",
+  email: "info@xelera.us",
+  web: "www.xelera.us",
+};
+
+const C = {
+  bg: "#f4f6f8", surface: "#ffffff", border: "#dde2e8",
+  sectionHeader: "#6b7a8d", label: "#1a2332", sublabel: "#8a95a3",
+  yellow: "#fffbe6", yellowBorder: "#e8d96b",
+  green: "#f0f7ed", greenBorder: "#a8d49a",
+  accent: "#1e5fa8", accentLight: "#e8f0fb",
+  btnRed: "#d93025", white: "#ffffff",
+  pdfBlue: "#1e5fa8",
+};
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+const S = {
+  app: { fontFamily:"'IBM Plex Sans','Segoe UI',sans-serif", background:C.bg, minHeight:"100vh", maxWidth:520, margin:"0 auto", paddingBottom:40 },
+  header: { background:C.accent, color:C.white, padding:"14px 16px 10px", position:"sticky", top:0, zIndex:100, boxShadow:"0 2px 8px rgba(0,0,0,0.18)" },
+  headerTitle: { fontSize:18, fontWeight:700, margin:0, letterSpacing:0.3 },
+  headerSub: { fontSize:12, opacity:0.8, margin:"2px 0 0" },
+  navBar: { display:"flex", gap:6, padding:"8px 10px", background:C.surface, borderBottom:\`1px solid \${C.border}\`, flexWrap:"wrap" },
+  navBtn: (a) => ({ fontSize:12, fontWeight:a?700:500, padding:"5px 10px", borderRadius:6, border:\`1.5px solid \${a?C.accent:C.border}\`, background:a?C.accentLight:C.white, color:a?C.accent:C.label, cursor:"pointer" }),
+  page: { padding:"0 0 16px" },
+  sectionGroup: { margin:"10px 10px 0", borderRadius:8, overflow:"hidden", border:\`1px solid \${C.border}\`, background:C.surface, boxShadow:"0 1px 3px rgba(0,0,0,0.06)" },
+  sectionHdr: { background:"#edf1f5", color:C.sectionHeader, fontWeight:700, fontSize:11, textTransform:"uppercase", letterSpacing:1.2, padding:"7px 12px", borderBottom:\`1px solid \${C.border}\` },
+  row: { display:"flex", alignItems:"center", borderBottom:\`1px solid \${C.border}\`, minHeight:40 },
+  rowLabel: { flex:1, padding:"6px 12px", fontSize:13, color:C.label, fontWeight:500 },
+  rowUnit: { fontSize:11, color:C.sublabel, fontStyle:"italic", minWidth:52, textAlign:"right", paddingRight:6 },
+  inputCell: { width:110, padding:"0 6px 0 0" },
+  input: { width:"100%", height:32, background:C.yellow, border:\`1.5px solid \${C.yellowBorder}\`, borderRadius:5, fontSize:13, fontWeight:600, color:C.label, textAlign:"right", padding:"0 8px", boxSizing:"border-box", outline:"none" },
+  outputCell: { width:110, padding:"0 6px 0 0", textAlign:"right" },
+  output: { display:"inline-block", width:"100%", height:32, lineHeight:"32px", background:C.green, border:\`1.5px solid \${C.greenBorder}\`, borderRadius:5, fontSize:13, fontWeight:700, color:"#2d6a22", textAlign:"right", padding:"0 8px", boxSizing:"border-box" },
+  legend: { display:"flex", gap:14, padding:"8px 12px", fontSize:11, color:C.sublabel },
+  legendItem: { display:"flex", alignItems:"center", gap:5 },
+  legendBox: (t) => ({ width:14, height:14, borderRadius:3, background:t==="input"?C.yellow:C.green, border:\`1.5px solid \${t==="input"?C.yellowBorder:C.greenBorder}\` }),
+  resetBtn: { background:C.btnRed, color:C.white, border:"none", borderRadius:6, padding:"6px 14px", fontWeight:700, fontSize:12, cursor:"pointer", marginLeft:"auto" },
+  pdfBtn: { background:C.accent, color:C.white, border:"none", borderRadius:6, padding:"8px 18px", fontWeight:700, fontSize:13, cursor:"pointer", display:"flex", alignItems:"center", gap:6 },
+  pdfBar: { margin:"12px 10px 0", display:"flex", justifyContent:"center" },
+  infoBox: { margin:"10px 10px 0", background:C.accentLight, border:\`1px solid #b8d0f0\`, borderRadius:8, padding:"10px 14px", fontSize:12, color:C.accent, lineHeight:1.6 },
+  formulaCard: { margin:"10px 10px 0", background:C.surface, border:\`1px solid \${C.border}\`, borderRadius:8, overflow:"hidden", boxShadow:"0 1px 3px rgba(0,0,0,0.06)" },
+  formulaRow: { padding:"8px 14px", borderBottom:\`1px solid \${C.border}\`, fontSize:12 },
+  formulaLabel: { fontWeight:700, color:C.label, fontSize:12 },
+  formulaEq: { color:C.sectionHeader, fontStyle:"italic", marginTop:2, fontFamily:"monospace", fontSize:12 },
+  footerNote: { margin:"12px 10px 0", fontSize:11, color:C.sublabel, textAlign:"center", lineHeight:1.5 },
+  hintBox: { padding:"8px 12px", fontSize:11, color:"#6b7a8d", lineHeight:1.7, borderTop:\`1px solid \${C.border}\` },
+};
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const n = (v) => parseFloat(v) || 0;
+const fmt = (v, d=2) => {
+  if (v===null||v===undefined||isNaN(v)||!isFinite(v)) return "—";
+  return Number(v).toLocaleString(undefined,{minimumFractionDigits:d,maximumFractionDigits:d});
+};
+const fmtMoney = (v) => v===null||v===undefined||isNaN(v)||!isFinite(v) ? "—" : "$"+Number(v).toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:0});
+const now = () => new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"});
+
+// ─── Shared UI Components ─────────────────────────────────────────────────────
+function SectionHdr({ title }) { return <div style={S.sectionHdr}>{title}</div>; }
+
+function InputRow({ label, unit, value, onChange, placeholder="" }) {
+  return (
+    <div style={S.row}>
+      <div style={S.rowLabel}>{label}</div>
+      {unit && <div style={S.rowUnit}>{unit}</div>}
+      <div style={S.inputCell}>
+        <input style={S.input} type="number" value={value} onChange={(e)=>onChange(e.target.value)} placeholder={placeholder} />
+      </div>
+    </div>
+  );
+}
+
+function OutputRow({ label, unit, value, decimals=2, colorVal }) {
+  const base = colorVal ? {...S.output, color:colorVal, borderColor:colorVal+"88"} : S.output;
+  return (
+    <div style={S.row}>
+      <div style={S.rowLabel}>{label}</div>
+      {unit && <div style={S.rowUnit}>{unit}</div>}
+      <div style={S.outputCell}><span style={base}>{fmt(value,decimals)}</span></div>
+    </div>
+  );
+}
+
+function Legend({ onReset }) {
+  return (
+    <div style={S.legend}>
+      <div style={S.legendItem}><div style={S.legendBox("input")}/><span>Enter value</span></div>
+      <div style={S.legendItem}><div style={S.legendBox("output")}/><span>Calculated</span></div>
+      <button style={S.resetBtn} onClick={onReset}>↺ Reset</button>
+    </div>
+  );
+}
+
+// ─── PDF ENGINE ───────────────────────────────────────────────────────────────
+// Generates a styled print window with Xelera letterhead + two-section layout
+function generatePDF(title, summaryRows, detailSections) {
+  const html = \`<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<title>\${title} — Xelera</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; font-size: 11pt; color: #1a2332; background: #fff; }
+
+  /* ── Letterhead ── */
+  .lh-bar { background: #1e5fa8; height: 8px; width: 100%; }
+  .lh-head { display: flex; justify-content: space-between; align-items: flex-start; padding: 18px 32px 14px; border-bottom: 2px solid #1e5fa8; }
+  .lh-company { font-size: 20pt; font-weight: 700; color: #1e5fa8; letter-spacing: 0.5px; }
+  .lh-tagline { font-size: 8.5pt; color: #6b7a8d; margin-top: 2px; }
+  .lh-contact { text-align: right; font-size: 8.5pt; color: #444; line-height: 1.65; }
+  .lh-contact a { color: #1e5fa8; text-decoration: none; }
+
+  /* ── Report header ── */
+  .report-meta { padding: 14px 32px 10px; display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid #dde2e8; }
+  .report-title { font-size: 15pt; font-weight: 700; color: #1e5fa8; }
+  .report-date { font-size: 9pt; color: #8a95a3; }
+
+  /* ── Section labels ── */
+  .section-label { background: #edf1f5; color: #6b7a8d; font-size: 8pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1.1px; padding: 5px 12px; border-top: 1px solid #dde2e8; border-bottom: 1px solid #dde2e8; margin-top: 14px; }
+  .section-label:first-of-type { margin-top: 0; }
+
+  /* ── Summary box ── */
+  .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; margin: 0 32px; border: 1.5px solid #1e5fa8; border-radius: 6px; overflow: hidden; }
+  .summary-card { padding: 10px 14px; border-right: 1px solid #dde2e8; border-bottom: 1px solid #dde2e8; }
+  .summary-card:nth-child(even) { border-right: none; }
+  .summary-card:nth-last-child(1), .summary-card:nth-last-child(2) { border-bottom: none; }
+  .summary-label { font-size: 8pt; color: #6b7a8d; margin-bottom: 3px; }
+  .summary-value { font-size: 13pt; font-weight: 700; color: #1e5fa8; }
+  .summary-unit { font-size: 8pt; color: #8a95a3; margin-left: 3px; font-weight: 400; }
+
+  /* ── Detail table ── */
+  .detail-wrap { margin: 0 32px; }
+  table { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
+  tr { border-bottom: 1px solid #eef0f3; }
+  tr:last-child { border-bottom: none; }
+  td { padding: 5px 8px; }
+  td.lbl { color: #1a2332; font-weight: 500; width: 52%; }
+  td.unit { color: #8a95a3; font-style: italic; width: 18%; text-align: right; font-size: 8.5pt; }
+  td.val-in { background: #fffbe6; color: #1a2332; font-weight: 600; width: 30%; text-align: right; border-radius: 3px; }
+  td.val-out { background: #f0f7ed; color: #2d6a22; font-weight: 700; width: 30%; text-align: right; border-radius: 3px; }
+  .sub-hdr { background: #f7f9fb; }
+  .sub-hdr td { font-size: 8pt; font-weight: 700; color: #6b7a8d; text-transform: uppercase; letter-spacing: 0.9px; padding: 7px 8px 4px; border-bottom: 1px solid #dde2e8; }
+
+  /* ── Footer ── */
+  .footer { margin-top: 28px; padding: 10px 32px; border-top: 2px solid #1e5fa8; display: flex; justify-content: space-between; font-size: 8pt; color: #8a95a3; }
+  .footer-brand { color: #1e5fa8; font-weight: 700; }
+
+  @media print {
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .no-print { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="lh-bar"></div>
+<div class="lh-head">
+  <div>
+    <img src="data:image/png;base64,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" style="height:56px;width:auto;display:block;"/>
+  </div>
+  <div class="lh-contact">
+    \${XELERA.address}<br/>
+    \${XELERA.city}<br/>
+    \${XELERA.phone}<br/>
+    <a href="mailto:\${XELERA.email}">\${XELERA.email}</a><br/>
+    <a href="https://\${XELERA.web}">\${XELERA.web}</a>
+  </div>
+</div>
+
+<div class="report-meta">
+  <div class="report-title">\${title} — Calculation Report</div>
+  <div class="report-date">Generated: \${now()}</div>
+</div>
+
+<!-- SUMMARY -->
+<div class="section-label" style="margin: 16px 32px 10px; border-radius: 4px; border: 1px solid #dde2e8;">KEY RESULTS SUMMARY</div>
+<div class="summary-grid">
+  \${summaryRows.map(r=>\`
+  <div class="summary-card">
+    <div class="summary-label">\${r.label}</div>
+    <div class="summary-value">\${r.value}<span class="summary-unit">\${r.unit||""}</span></div>
+  </div>\`).join("")}
+</div>
+
+<!-- DETAIL -->
+<div style="margin: 20px 32px 8px 32px; font-size: 8pt; font-weight: 700; color: #6b7a8d; text-transform: uppercase; letter-spacing: 1.1px; border-bottom: 1px solid #dde2e8; padding-bottom: 4px;">FULL INPUT &amp; CALCULATION DETAIL</div>
+<div class="detail-wrap">
+<table>
+\${detailSections.map(sec=>\`
+  <tr class="sub-hdr"><td colspan="3">\${sec.title}</td></tr>
+  \${sec.rows.map(r=>\`
+  <tr>
+    <td class="lbl">\${r.label}</td>
+    <td class="unit">\${r.unit||""}</td>
+    <td class="\${r.type==="input"?"val-in":"val-out"}">\${r.display}</td>
+  </tr>\`).join("")}
+\`).join("")}
+</table>
+</div>
+
+<div class="footer">
+  <span><span class="footer-brand">Xelera, Inc.</span> · Water Treatment &amp; Corrosion Control · Charlotte, NC</span>
+  <span>Formulas per AWT field standards</span>
+</div>
+
+<script>window.onload=()=>{window.print();}</script>
+</body>
+</html>\`;
+
+  const blob = new Blob([html], {type: 'text/html'});
+  const url = URL.createObjectURL(blob);
+  const win = window.open(url, '_blank');
+  // Clean up the blob URL after the window loads
+  if (win) win.addEventListener('load', () => URL.revokeObjectURL(url));
+}
+
+function PDFButton({ onClick }) {
+  return (
+    <div style={S.pdfBar}>
+      <button style={S.pdfBtn} onClick={onClick}>
+        ⬇ Download PDF of these calculations
+      </button>
+    </div>
+  );
+}
+
+// ─── COOLING TOWER ────────────────────────────────────────────────────────────
+function CoolingPage() {
+  const init = {
+    towerTonnage:"",gpmRR:"",deltaT:"10",percentLoad:"100",volume:"",cycles:"",
+    inhibitorName:"",inhibitorPrice:"",inhibitorDensity:"",inhibitorDosage:"",inhibitorHrsDay:"",inhibitorDaysYr:"",
+    bio1Name:"",bio1Price:"",bio1Density:"",bio1Dosage:"",bio1Freq:"",bio1WeeksYr:"",
+    bio2Name:"",bio2Price:"",bio2Density:"",bio2Dosage:"",bio2Freq:"",bio2WeeksYr:"",
+    cityWaterCost:"",sewerCost:"",
+  };
+  const [v,setV]=useState(init);
+  const set=(k)=>(val)=>setV(p=>({...p,[k]:val}));
+
+  const tons=n(v.towerTonnage), rr=tons>0?tons*3:n(v.gpmRR);
+  const derivedTons=rr>0&&tons===0?rr/3:tons;
+  const pctLoad=n(v.percentLoad)/100||1, dT=n(v.deltaT)||10;
+  const cycles=n(v.cycles), vol=n(v.volume);
+  const evap=rr>0?rr*0.01*(dT/10)*pctLoad:null;
+  const mu=evap!=null&&cycles>1?evap*cycles/(cycles-1):null;
+  const bd=evap!=null&&cycles>1?evap/(cycles-1):null;
+  const hti=vol>0&&bd!=null&&bd>0?(0.7*vol)/(bd*60):null;
+
+  const iPrice=n(v.inhibitorPrice),iDens=n(v.inhibitorDensity),iDosage=n(v.inhibitorDosage);
+  const iHrsDay=n(v.inhibitorHrsDay),iDaysYr=n(v.inhibitorDaysYr);
+  const iLbDay=mu!=null&&cycles>0&&iDosage>0?(iDosage/cycles/120)*(mu*1440)/1000:null;
+  const iLbYr=iLbDay!=null&&iDaysYr>0?iLbDay*iDaysYr*(iHrsDay/24):null;
+  const iGalDay=iLbDay!=null&&iDens>0?iLbDay/iDens:null;
+  const iGalYr=iLbYr!=null&&iDens>0?iLbYr/iDens:null;
+  const iCostYr=iGalYr!=null&&iPrice>0&&iDens>0?iGalYr*iPrice*iDens:null;
+
+  const bio=(price,dens,dosage,freq,wk)=>{
+    const p=n(price),d=n(dens),ppm=n(dosage),f=n(freq),w=n(wk);
+    if(vol<=0||ppm<=0) return {};
+    const lbFeed=(ppm/120)*(vol/1000),lbYr=lbFeed*f*w;
+    return{lbFeed,lbYr,galFeed:d>0?lbFeed/d:null,galYr:d>0?lbYr/d:null,cost:d>0&&p>0?(lbYr/d)*p*d:null};
+  };
+  const b1=bio(v.bio1Price,v.bio1Density,v.bio1Dosage,v.bio1Freq,v.bio1WeeksYr);
+  const b2=bio(v.bio2Price,v.bio2Density,v.bio2Dosage,v.bio2Freq,v.bio2WeeksYr);
+
+  const muGalYr=mu!=null&&iDaysYr>0?mu*1440*iDaysYr*(iHrsDay/24):null;
+  const cw=n(v.cityWaterCost)/1000,sw=n(v.sewerCost)/1000;
+  const annMUWater=muGalYr!=null&&cw>0?muGalYr*cw:null;
+  const annSewer=muGalYr!=null&&sw>0?muGalYr*sw:null;
+  const evapGalYr=evap!=null&&iDaysYr>0?evap*1440*iDaysYr*(iHrsDay/24):null;
+  const evapCredit=evapGalYr!=null&&cw>0?evapGalYr*cw:null;
+  const totalWater=annMUWater!=null&&annSewer!=null&&evapCredit!=null?annMUWater+annSewer-evapCredit:null;
+  const totalChem=iCostYr!=null?(iCostYr||0)+(b1.cost||0)+(b2.cost||0):null;
+
+  const handlePDF=()=>{
+    const summary=[
+      {label:"Tower Tonnage",value:fmt(derivedTons>0?derivedTons:null,0),unit:"tons"},
+      {label:"GPM Recirculation",value:fmt(rr>0?rr:null,1),unit:"gpm"},
+      {label:"Evaporation",value:fmt(evap,2),unit:"gpm"},
+      {label:"Make Up (MU)",value:fmt(mu,2),unit:"gpm"},
+      {label:"Blow Down (BD)",value:fmt(bd,2),unit:"gpm"},
+      {label:"HTI",value:fmt(hti,1),unit:"hrs"},
+      {label:"Annual Chemical Cost",value:fmtMoney(totalChem),unit:""},
+      {label:"Annual Net Water Cost",value:fmtMoney(totalWater),unit:""},
+    ];
+    const detail=[
+      {title:"System Parameters",rows:[
+        {label:"Tower Tonnage",unit:"tons",display:v.towerTonnage||"—",type:"input"},
+        {label:"GPM Recirculation",unit:"gpm",display:v.gpmRR||"—",type:"input"},
+        {label:"Delta T",unit:"°F",display:v.deltaT,type:"input"},
+        {label:"Percent Load",unit:"%",display:v.percentLoad,type:"input"},
+        {label:"System Volume",unit:"gal",display:v.volume||"—",type:"input"},
+        {label:"Cycles of Concentration",unit:"COC",display:v.cycles||"—",type:"input"},
+      ]},
+      {title:"Water Balance",rows:[
+        {label:"Tower Tonnage",unit:"tons",display:fmt(derivedTons>0?derivedTons:null,0),type:"output"},
+        {label:"GPM Recirculation",unit:"gpm",display:fmt(rr>0?rr:null,1),type:"output"},
+        {label:"Evaporation (E)",unit:"gpm",display:fmt(evap,2),type:"output"},
+        {label:"Make Up (MU)",unit:"gpm",display:fmt(mu,2),type:"output"},
+        {label:"Blow Down (BD)",unit:"gpm",display:fmt(bd,2),type:"output"},
+        {label:"Holding Time Index (HTI)",unit:"hrs",display:fmt(hti,1),type:"output"},
+      ]},
+      {title:\`Inhibitor\${v.inhibitorName?" — "+v.inhibitorName:""}\`,rows:[
+        {label:"Price",unit:"$/lb",display:v.inhibitorPrice||"—",type:"input"},
+        {label:"Density",unit:"lb/gal",display:v.inhibitorDensity||"—",type:"input"},
+        {label:"Dosage",unit:"ppm",display:v.inhibitorDosage||"—",type:"input"},
+        {label:"Hrs/Day",unit:"hrs",display:v.inhibitorHrsDay||"—",type:"input"},
+        {label:"Days/Year",unit:"days",display:v.inhibitorDaysYr||"—",type:"input"},
+        {label:"Lb / Day",unit:"lbs",display:fmt(iLbDay,2),type:"output"},
+        {label:"Lb / Year",unit:"lbs",display:fmt(iLbYr,0),type:"output"},
+        {label:"Gals / Day",unit:"gal",display:fmt(iGalDay,2),type:"output"},
+        {label:"Gals / Year",unit:"gal",display:fmt(iGalYr,0),type:"output"},
+        {label:"Annual Cost",unit:"$",display:fmtMoney(iCostYr),type:"output"},
+      ]},
+      {title:\`Biocide #1\${v.bio1Name?" — "+v.bio1Name:""}\`,rows:[
+        {label:"Price",unit:"$/lb",display:v.bio1Price||"—",type:"input"},
+        {label:"Density",unit:"lb/gal",display:v.bio1Density||"—",type:"input"},
+        {label:"Dosage",unit:"ppm",display:v.bio1Dosage||"—",type:"input"},
+        {label:"Frequency",unit:"#/week",display:v.bio1Freq||"—",type:"input"},
+        {label:"Weeks/Year",unit:"wks",display:v.bio1WeeksYr||"—",type:"input"},
+        {label:"Lb / Feed",unit:"lbs",display:fmt(b1.lbFeed,2),type:"output"},
+        {label:"Lb / Year",unit:"lbs",display:fmt(b1.lbYr,0),type:"output"},
+        {label:"Gals / Feed",unit:"gal",display:fmt(b1.galFeed,2),type:"output"},
+        {label:"Annual Cost",unit:"$",display:fmtMoney(b1.cost),type:"output"},
+      ]},
+      {title:\`Biocide #2\${v.bio2Name?" — "+v.bio2Name:""}\`,rows:[
+        {label:"Price",unit:"$/lb",display:v.bio2Price||"—",type:"input"},
+        {label:"Density",unit:"lb/gal",display:v.bio2Density||"—",type:"input"},
+        {label:"Dosage",unit:"ppm",display:v.bio2Dosage||"—",type:"input"},
+        {label:"Frequency",unit:"#/week",display:v.bio2Freq||"—",type:"input"},
+        {label:"Weeks/Year",unit:"wks",display:v.bio2WeeksYr||"—",type:"input"},
+        {label:"Lb / Feed",unit:"lbs",display:fmt(b2.lbFeed,2),type:"output"},
+        {label:"Lb / Year",unit:"lbs",display:fmt(b2.lbYr,0),type:"output"},
+        {label:"Gals / Feed",unit:"gal",display:fmt(b2.galFeed,2),type:"output"},
+        {label:"Annual Cost",unit:"$",display:fmtMoney(b2.cost),type:"output"},
+      ]},
+      {title:"Water Costs",rows:[
+        {label:"City Water Cost",unit:"$/1k gal",display:v.cityWaterCost||"—",type:"input"},
+        {label:"Sewer Cost",unit:"$/1k gal",display:v.sewerCost||"—",type:"input"},
+        {label:"Annual MU Water Cost",unit:"$",display:fmtMoney(annMUWater),type:"output"},
+        {label:"Annual Sewer Cost",unit:"$",display:fmtMoney(annSewer),type:"output"},
+        {label:"Annual Evap Credit",unit:"$",display:fmtMoney(evapCredit),type:"output"},
+        {label:"Annual Net Water Cost",unit:"$",display:fmtMoney(totalWater),type:"output"},
+        {label:"Total Chemical Program",unit:"$",display:fmtMoney(totalChem),type:"output"},
+      ]},
+    ];
+    generatePDF("Cooling Tower",summary,detail);
+  };
+
+  return (
+    <div style={S.page}>
+      <Legend onReset={()=>setV(init)}/>
+      <div style={S.sectionGroup}>
+        <SectionHdr title="System Parameters"/>
+        <InputRow label="Tower Tonnage" value={v.towerTonnage} onChange={set("towerTonnage")} placeholder="tons"/>
+        <InputRow label="GPM Recirculation (RR)" unit="gpm" value={v.gpmRR} onChange={set("gpmRR")} placeholder="or enter tons"/>
+        <InputRow label="Delta T" unit="°F" value={v.deltaT} onChange={set("deltaT")}/>
+        <InputRow label="Percent Load" unit="1–100%" value={v.percentLoad} onChange={set("percentLoad")}/>
+        <InputRow label="System Volume" unit="gal" value={v.volume} onChange={set("volume")}/>
+        <InputRow label="Cycles of Concentration" unit="COC" value={v.cycles} onChange={set("cycles")}/>
+      </div>
+      <div style={S.sectionGroup}>
+        <SectionHdr title="Water Balance — Calculated"/>
+        <OutputRow label="Tower Tonnage" value={derivedTons>0?derivedTons:null} decimals={0}/>
+        <OutputRow label="GPM Recirculation" unit="gpm" value={rr>0?rr:null} decimals={1}/>
+        <OutputRow label="Evaporation (E)" unit="gpm" value={evap}/>
+        <OutputRow label="Make Up (MU)" unit="gpm" value={mu}/>
+        <OutputRow label="Blow Down (BD)" unit="gpm" value={bd}/>
+        <OutputRow label="Holding Time Index (HTI)" unit="hrs" value={hti} decimals={1}/>
+      </div>
+      <div style={S.sectionGroup}>
+        <SectionHdr title="Inhibitor Dosing & Costs"/>
+        <InputRow label="Inhibitor Name" value={v.inhibitorName} onChange={set("inhibitorName")}/>
+        <InputRow label="Price" unit="$/lb" value={v.inhibitorPrice} onChange={set("inhibitorPrice")}/>
+        <InputRow label="Density" unit="lb/gal" value={v.inhibitorDensity} onChange={set("inhibitorDensity")}/>
+        <InputRow label="Dosage" unit="target ppm" value={v.inhibitorDosage} onChange={set("inhibitorDosage")}/>
+        <InputRow label="Hrs/Day Run Time" value={v.inhibitorHrsDay} onChange={set("inhibitorHrsDay")}/>
+        <InputRow label="Days/Yr Run Time" value={v.inhibitorDaysYr} onChange={set("inhibitorDaysYr")}/>
+        <OutputRow label="Lb / Day" value={iLbDay}/><OutputRow label="Lb / Year" value={iLbYr} decimals={0}/>
+        <OutputRow label="Gals / Day" unit="gal" value={iGalDay}/><OutputRow label="Gals / Year" unit="gal" value={iGalYr} decimals={0}/>
+        <OutputRow label="Annual Cost w/ Run Times" value={iCostYr} decimals={0}/>
+      </div>
+      <div style={S.sectionGroup}>
+        <SectionHdr title="Biocide #1"/>
+        <InputRow label="Biocide #1 Name" value={v.bio1Name} onChange={set("bio1Name")}/>
+        <InputRow label="Price" unit="$/lb" value={v.bio1Price} onChange={set("bio1Price")}/>
+        <InputRow label="Density" unit="lb/gal" value={v.bio1Density} onChange={set("bio1Density")}/>
+        <InputRow label="Dosage" unit="target ppm" value={v.bio1Dosage} onChange={set("bio1Dosage")}/>
+        <InputRow label="Frequency" unit="#/week" value={v.bio1Freq} onChange={set("bio1Freq")}/>
+        <InputRow label="Weeks/Yr Run Time" value={v.bio1WeeksYr} onChange={set("bio1WeeksYr")}/>
+        <OutputRow label="Lb / Feed" value={b1.lbFeed}/><OutputRow label="Lb / Year" value={b1.lbYr} decimals={0}/>
+        <OutputRow label="Gals / Feed" unit="gal" value={b1.galFeed}/><OutputRow label="Gals / Year" unit="gal" value={b1.galYr} decimals={0}/>
+        <OutputRow label="Biocide #1 Annual Cost" value={b1.cost} decimals={0}/>
+      </div>
+      <div style={S.sectionGroup}>
+        <SectionHdr title="Biocide #2"/>
+        <InputRow label="Biocide #2 Name" value={v.bio2Name} onChange={set("bio2Name")}/>
+        <InputRow label="Price" unit="$/lb" value={v.bio2Price} onChange={set("bio2Price")}/>
+        <InputRow label="Density" unit="lb/gal" value={v.bio2Density} onChange={set("bio2Density")}/>
+        <InputRow label="Dosage" unit="target ppm" value={v.bio2Dosage} onChange={set("bio2Dosage")}/>
+        <InputRow label="Frequency" unit="#/week" value={v.bio2Freq} onChange={set("bio2Freq")}/>
+        <InputRow label="Weeks/Yr Run Time" value={v.bio2WeeksYr} onChange={set("bio2WeeksYr")}/>
+        <OutputRow label="Lb / Feed" value={b2.lbFeed}/><OutputRow label="Lb / Year" value={b2.lbYr} decimals={0}/>
+        <OutputRow label="Gals / Feed" unit="gal" value={b2.galFeed}/><OutputRow label="Gals / Year" unit="gal" value={b2.galYr} decimals={0}/>
+        <OutputRow label="Biocide #2 Annual Cost" value={b2.cost} decimals={0}/>
+      </div>
+      <div style={S.sectionGroup}>
+        <SectionHdr title="Water Costs w/ Run Times"/>
+        <InputRow label="City Water Cost" unit="$/1k gal" value={v.cityWaterCost} onChange={set("cityWaterCost")}/>
+        <InputRow label="Sewer Cost" unit="$/1k gal" value={v.sewerCost} onChange={set("sewerCost")}/>
+        <OutputRow label="Annual MU Water Cost" value={annMUWater} decimals={0}/>
+        <OutputRow label="Annual Sewer Cost" value={annSewer} decimals={0}/>
+        <OutputRow label="Annual Evap Credit" value={evapCredit} decimals={0}/>
+        <OutputRow label="Annual Net Water Cost" value={totalWater} decimals={0}/>
+      </div>
+      <div style={S.sectionGroup}>
+        <SectionHdr title="Total Chemical Program Cost"/>
+        <OutputRow label="Inhibitor + Biocides (annual)" value={totalChem} decimals={0}/>
+      </div>
+      <PDFButton onClick={handlePDF}/>
+      <div style={S.footerNote}>Formulas per AWT field standards · Xelera Water Treatment</div>
+    </div>
+  );
+}
+
+// ─── BOILER ───────────────────────────────────────────────────────────────────
+function BoilerPage() {
+  const init={boilerHP:"",avgSteamLoad:"",hrsDay:"",daysYr:"",cityWaterCost:"",muConductivity:"",fwConductivity:"",condensateConductivity:"",boilerConductivity:"",operatingMinutes:"",inhibitorName:"",inhibitorPrice:"",inhibitorDensity:"",inhibitorDosage:""};
+  const [v,setV]=useState(init);
+  const set=(k)=>(val)=>setV(p=>({...p,[k]:val}));
+
+  const hp=n(v.boilerHP),avgLoad=n(v.avgSteamLoad),hrsDay=n(v.hrsDay),daysYr=n(v.daysYr);
+  const cwCost=n(v.cityWaterCost),muCond=n(v.muConductivity),fwCond=n(v.fwConductivity);
+  const condCond=n(v.condensateConductivity),bwCond=n(v.boilerConductivity),opMin=n(v.operatingMinutes);
+  const steamLbHr=avgLoad>0?avgLoad:hp>0?hp*34.5:null;
+  const cycles=bwCond>0&&fwCond>0?bwCond/fwCond:null;
+  const steamGpm=steamLbHr!=null?steamLbHr/500:null;
+  const fwGpm=steamGpm!=null&&cycles!=null&&cycles>1?steamGpm*(cycles/(cycles-1)):steamGpm;
+  const bdGpm=fwGpm!=null&&cycles!=null&&cycles>1?fwGpm/(cycles-1):null;
+  const pctCond=fwCond>0&&muCond>0&&fwCond!==condCond?((fwCond-muCond)/(fwCond-condCond))*100:null;
+  const condGpm=fwGpm!=null&&pctCond!=null?fwGpm*(pctCond/100):null;
+  const muGpm=fwGpm!=null&&condGpm!=null?fwGpm-condGpm:fwGpm;
+  const annOpMin=hrsDay>0&&daysYr>0?hrsDay*60*daysYr:opMin>0?opMin:null;
+  const annMU=muGpm!=null&&annOpMin!=null?muGpm*annOpMin:null;
+  const annBD=bdGpm!=null&&annOpMin!=null?bdGpm*annOpMin:null;
+  const mmLbs=fwGpm!=null&&annOpMin!=null?(fwGpm*annOpMin*8.33)/1e6:null;
+  const annWater=annMU!=null&&cwCost>0?(annMU/1000)*cwCost:null;
+  const iPrice=n(v.inhibitorPrice),iDens=n(v.inhibitorDensity),iDosage=n(v.inhibitorDosage);
+  const iLbDay=muGpm!=null&&cycles!=null&&cycles>0&&iDosage>0?(iDosage/cycles/120)*(muGpm*1440)/1000:null;
+  const iLbYr=iLbDay!=null&&hrsDay>0&&daysYr>0?iLbDay*daysYr*(hrsDay/24):null;
+  const iGalDay=iLbDay!=null&&iDens>0?iLbDay/iDens:null;
+  const iGalYr=iLbYr!=null&&iDens>0?iLbYr/iDens:null;
+  const iCostYr=iGalYr!=null&&iPrice>0&&iDens>0?iGalYr*iPrice*iDens:null;
+
+  const handlePDF=()=>{
+    const summary=[
+      {label:"Steam Load",value:fmt(steamLbHr,0),unit:"lbs/hr"},
+      {label:"Cycles of Concentration",value:fmt(cycles,1),unit:"COC"},
+      {label:"Make Up Flow",value:fmt(muGpm,2),unit:"gpm"},
+      {label:"Feed Water Flow",value:fmt(fwGpm,2),unit:"gpm"},
+      {label:"Blow Down Rate",value:fmt(bdGpm,2),unit:"gpm"},
+      {label:"% Condensate Return",value:fmt(pctCond,1),unit:"%"},
+      {label:"Annual Make Up",value:fmt(annMU,0),unit:"gal"},
+      {label:"Annual Water Cost",value:fmtMoney(annWater),unit:""},
+    ];
+    const detail=[
+      {title:"System Conditions",rows:[
+        {label:"Boiler Horsepower",unit:"hp",display:v.boilerHP||"—",type:"input"},
+        {label:"AVG Steam Load",unit:"#/hr",display:v.avgSteamLoad||"—",type:"input"},
+        {label:"Hrs / Day",unit:"hrs",display:v.hrsDay||"—",type:"input"},
+        {label:"Days / Year",unit:"days",display:v.daysYr||"—",type:"input"},
+        {label:"City Water Cost",unit:"$/1k gal",display:v.cityWaterCost||"—",type:"input"},
+        {label:"MU Conductivity",unit:"µmhos",display:v.muConductivity||"—",type:"input"},
+        {label:"FW Conductivity",unit:"µmhos",display:v.fwConductivity||"—",type:"input"},
+        {label:"Condensate Conductivity",unit:"µmhos",display:v.condensateConductivity||"—",type:"input"},
+        {label:"Boiler Conductivity",unit:"µmhos",display:v.boilerConductivity||"—",type:"input"},
+      ]},
+      {title:"Calculated System Values",rows:[
+        {label:"AVG Steam Load",unit:"#/hr",display:fmt(steamLbHr,0),type:"output"},
+        {label:"Cycles of Concentration",unit:"",display:fmt(cycles,1),type:"output"},
+        {label:"Make Up Water Flow",unit:"gpm",display:fmt(muGpm,2),type:"output"},
+        {label:"Feed Water Flow",unit:"gpm",display:fmt(fwGpm,2),type:"output"},
+        {label:"Blow Down Rate",unit:"gpm",display:fmt(bdGpm,2),type:"output"},
+        {label:"Annual Make Up",unit:"gal",display:fmt(annMU,0),type:"output"},
+        {label:"Annual Blow Down",unit:"gal",display:fmt(annBD,0),type:"output"},
+        {label:"% Condensate Return",unit:"%",display:fmt(pctCond,1),type:"output"},
+        {label:"MM lbs/yr Feed Water",unit:"MM lbs",display:fmt(mmLbs,3),type:"output"},
+        {label:"Steam Flow",unit:"gpm",display:fmt(steamGpm,2),type:"output"},
+        {label:"Annual Water Cost",unit:"$",display:fmtMoney(annWater),type:"output"},
+      ]},
+      {title:\`Inhibitor\${v.inhibitorName?" — "+v.inhibitorName:""}\`,rows:[
+        {label:"Price",unit:"$/lb",display:v.inhibitorPrice||"—",type:"input"},
+        {label:"Density",unit:"lb/gal",display:v.inhibitorDensity||"—",type:"input"},
+        {label:"Dosage",unit:"ppm",display:v.inhibitorDosage||"—",type:"input"},
+        {label:"Lb / Day",unit:"lbs",display:fmt(iLbDay,2),type:"output"},
+        {label:"Lb / Year",unit:"lbs",display:fmt(iLbYr,0),type:"output"},
+        {label:"Gals / Day",unit:"gal",display:fmt(iGalDay,2),type:"output"},
+        {label:"Gals / Year",unit:"gal",display:fmt(iGalYr,0),type:"output"},
+        {label:"Annual Cost",unit:"$",display:fmtMoney(iCostYr),type:"output"},
+      ]},
+    ];
+    generatePDF("Boiler Water",summary,detail);
+  };
+
+  return (
+    <div style={S.page}>
+      <Legend onReset={()=>setV(init)}/>
+      <div style={S.sectionGroup}>
+        <SectionHdr title="System Conditions"/>
+        <InputRow label="Boiler Horsepower" unit="hp" value={v.boilerHP} onChange={set("boilerHP")}/>
+        <InputRow label="AVG Steam Load" unit="#/hr" value={v.avgSteamLoad} onChange={set("avgSteamLoad")} placeholder="or enter HP"/>
+        <InputRow label="Hrs / Day" unit="hrs" value={v.hrsDay} onChange={set("hrsDay")}/>
+        <InputRow label="Days / Year" unit="days" value={v.daysYr} onChange={set("daysYr")}/>
+        <InputRow label="City Water Cost" unit="$/1k gal" value={v.cityWaterCost} onChange={set("cityWaterCost")}/>
+        <InputRow label="MU Conductivity" unit="µmhos" value={v.muConductivity} onChange={set("muConductivity")}/>
+        <InputRow label="FW Conductivity" unit="µmhos" value={v.fwConductivity} onChange={set("fwConductivity")}/>
+        <InputRow label="Condensate Conductivity" unit="µmhos" value={v.condensateConductivity} onChange={set("condensateConductivity")}/>
+        <InputRow label="Boiler Conductivity" unit="µmhos" value={v.boilerConductivity} onChange={set("boilerConductivity")}/>
+        <InputRow label="Operating Minutes / Yr" unit="min" value={v.operatingMinutes} onChange={set("operatingMinutes")} placeholder="or use hrs×days"/>
+      </div>
+      <div style={S.sectionGroup}>
+        <SectionHdr title="Calculated System Values"/>
+        <OutputRow label="AVG Steam Load" unit="#/hr" value={steamLbHr} decimals={0}/>
+        <OutputRow label="Cycles of Concentration" value={cycles} decimals={1}/>
+        <OutputRow label="Make Up Water Flow" unit="gpm" value={muGpm}/>
+        <OutputRow label="Feed Water Flow" unit="gpm" value={fwGpm}/>
+        <OutputRow label="Blow Down Rate" unit="gpm" value={bdGpm}/>
+        <OutputRow label="Annual Make Up" unit="gal" value={annMU} decimals={0}/>
+        <OutputRow label="Annual Blow Down" unit="gal" value={annBD} decimals={0}/>
+        <OutputRow label="Actual % Condensate Return" unit="%" value={pctCond} decimals={1}/>
+        <OutputRow label="MM lbs/yr of Feed Water" unit="MM lbs" value={mmLbs} decimals={3}/>
+        <OutputRow label="Condensate Flow Rate" unit="gpm" value={condGpm}/>
+        <OutputRow label="Steam Flow" unit="gpm" value={steamGpm}/>
+        <OutputRow label="Annual Water Cost" value={annWater} decimals={0}/>
+      </div>
+      <div style={S.sectionGroup}>
+        <SectionHdr title="Inhibitor Dosing & Costs"/>
+        <InputRow label="Inhibitor Name" value={v.inhibitorName} onChange={set("inhibitorName")}/>
+        <InputRow label="Price" unit="$/lb" value={v.inhibitorPrice} onChange={set("inhibitorPrice")}/>
+        <InputRow label="Density" unit="lb/gal" value={v.inhibitorDensity} onChange={set("inhibitorDensity")}/>
+        <InputRow label="Dosage" unit="target ppm" value={v.inhibitorDosage} onChange={set("inhibitorDosage")}/>
+        <OutputRow label="Lb / Day" value={iLbDay}/><OutputRow label="Lb / Year" value={iLbYr} decimals={0}/>
+        <OutputRow label="Gals / Day" unit="gal" value={iGalDay}/><OutputRow label="Gals / Year" unit="gal" value={iGalYr} decimals={0}/>
+        <OutputRow label="Annual Cost w/ Run Times" value={iCostYr} decimals={0}/>
+      </div>
+      <PDFButton onClick={handlePDF}/>
+      <div style={S.footerNote}>Formulas: AWT "Basic Calculations – Part III: Boiler Water" · Xelera</div>
+    </div>
+  );
+}
+
+// ─── SOFTENER ─────────────────────────────────────────────────────────────────
+function SoftenerPage() {
+  const init={serviceFlowRate:"5",totalHardness:"",totalIron:"",cuFtResin:"",exchangeCapacity:"30000",expPctCapacity:"90"};
+  const [v,setV]=useState(init);
+  const set=(k)=>(val)=>setV(p=>({...p,[k]:val}));
+
+  const sfr=n(v.serviceFlowRate),hardness=n(v.totalHardness),iron=n(v.totalIron);
+  const resin=n(v.cuFtResin),exchCap=n(v.exchangeCapacity),expPct=n(v.expPctCapacity);
+  const ironAsHardness=iron*4;
+  const totalGpg=(hardness+ironAsHardness)/17.1;
+  const softeningCapacity=resin>0&&exchCap>0&&expPct>0&&totalGpg>0?(resin*exchCap*(expPct/100))/totalGpg:null;
+  const maxPeakFlow=sfr>0&&resin>0?sfr*resin:null;
+
+  const handlePDF=()=>{
+    const summary=[
+      {label:"Resin Volume",value:v.cuFtResin||"—",unit:"ft³"},
+      {label:"Total Hardness",value:v.totalHardness||"—",unit:"ppm CaCO₃"},
+      {label:"Total Iron",value:v.totalIron||"—",unit:"ppm Fe"},
+      {label:"Hardness Load",value:fmt(totalGpg>0?totalGpg:null,2),unit:"gpg"},
+      {label:"Softening Capacity",value:fmt(softeningCapacity,0),unit:"gal"},
+      {label:"Max Peak Flow",value:fmt(maxPeakFlow,1),unit:"gpm"},
+    ];
+    const detail=[
+      {title:"Softener Inputs",rows:[
+        {label:"Service Flow Rate",unit:"gpm/ft³",display:v.serviceFlowRate,type:"input"},
+        {label:"Total Hardness",unit:"ppm CaCO₃",display:v.totalHardness||"—",type:"input"},
+        {label:"Total Iron",unit:"ppm Fe",display:v.totalIron||"—",type:"input"},
+        {label:"Cu. Ft. Resin",unit:"ft³",display:v.cuFtResin||"—",type:"input"},
+        {label:"Exchange Capacity",unit:"gr/ft³",display:v.exchangeCapacity,type:"input"},
+        {label:"Expected % Capacity",unit:"%",display:v.expPctCapacity,type:"input"},
+      ]},
+      {title:"Calculated Results",rows:[
+        {label:"Iron as Hardness Equiv.",unit:"ppm CaCO₃",display:fmt(iron>0?ironAsHardness:null,1),type:"output"},
+        {label:"Total Hardness Load",unit:"gpg",display:fmt(totalGpg>0?totalGpg:null,2),type:"output"},
+        {label:"Softening Capacity",unit:"gal",display:fmt(softeningCapacity,0),type:"output"},
+        {label:"Max Peak Flow",unit:"gpm",display:fmt(maxPeakFlow,1),type:"output"},
+      ]},
+    ];
+    generatePDF("Water Softener",summary,detail);
+  };
+
+  return (
+    <div style={S.page}>
+      <Legend onReset={()=>setV(init)}/>
+      <div style={S.sectionGroup}>
+        <SectionHdr title="Sodium Zeolite Water Softener"/>
+        <InputRow label="Service Flow Rate" unit="gpm/ft³" value={v.serviceFlowRate} onChange={set("serviceFlowRate")}/>
+        <InputRow label="Total Hardness" unit="CaCO₃ ppm" value={v.totalHardness} onChange={set("totalHardness")}/>
+        <InputRow label="Total Iron" unit="Fe ppm" value={v.totalIron} onChange={set("totalIron")}/>
+        <InputRow label="Cu. Ft. Resin" unit="ft³" value={v.cuFtResin} onChange={set("cuFtResin")}/>
+        <InputRow label="Exchange Capacity" unit="gr/ft³" value={v.exchangeCapacity} onChange={set("exchangeCapacity")}/>
+        <InputRow label="Exp. % Capacity" unit="%" value={v.expPctCapacity} onChange={set("expPctCapacity")}/>
+        <OutputRow label="Softening Capacity" unit="gals" value={softeningCapacity} decimals={0}/>
+        <OutputRow label="Max Peak Flow" unit="gpm" value={maxPeakFlow} decimals={1}/>
+      </div>
+      <div style={S.sectionGroup}>
+        <SectionHdr title="Supporting Detail"/>
+        <OutputRow label="Total Hardness Load" unit="gpg" value={totalGpg>0?totalGpg:null} decimals={2}/>
+        <OutputRow label="Iron as Hardness Equiv." unit="ppm CaCO₃" value={iron>0?ironAsHardness:null} decimals={1}/>
+        <div style={S.hintBox}>
+          17.1 ppm CaCO₃ = 1 grain hardness<br/>
+          1 ppm Fe ≈ 4 ppm CaCO₃ hardness equivalent<br/>
+          Exchange capacity default: 30,000 gr/ft³ @ 15 lbs salt<br/>
+          Peak flow default: 5 gpm/ft³ resin
+        </div>
+      </div>
+      <PDFButton onClick={handlePDF}/>
+      <div style={S.footerNote}>Formulas: AWT "Basic Calculations – Part 2: Pretreatment" · Xelera</div>
+    </div>
+  );
+}
+
+// ─── LSI ──────────────────────────────────────────────────────────────────────
+function LSIPage() {
+  const init={pH:"",temp:"",tds:"",calcium:"",alkalinity:""};
+  const [v,setV]=useState(init);
+  const set=(k)=>(val)=>setV(p=>({...p,[k]:val}));
+
+  const pH=n(v.pH),tempF=n(v.temp),tds=n(v.tds),ca=n(v.calcium),alk=n(v.alkalinity);
+  const pC=ca>0?-Math.log10((ca/2.5)/100000):null;
+  const pA=alk>0?-Math.log10(alk/50000):null;
+  let pKpKs=null;
+  if(tempF>0){
+    const tbl=[[32,2.6],[40,2.5],[50,2.4],[60,2.3],[70,2.2],[80,2.1],[90,2.0],[100,1.9],[110,1.8],[120,1.7],[130,1.6],[140,1.5],[150,1.4],[160,1.3]];
+    if(tempF<=32)pKpKs=2.6;else if(tempF>=160)pKpKs=1.3;
+    else for(let i=0;i<tbl.length-1;i++)if(tempF>=tbl[i][0]&&tempF<=tbl[i+1][0]){pKpKs=tbl[i][1]+((tempF-tbl[i][0])/(tbl[i+1][0]-tbl[i][0]))*(tbl[i+1][1]-tbl[i][1]);break;}
+  }
+  let fm=0;
+  if(tds>0){const s=Math.sqrt(2.5e-5*tds);fm=-0.5*(s/(1+s)-0.3*2.5e-5*tds);}
+  const pHs=pC!=null&&pA!=null&&pKpKs!=null?pKpKs+pC+pA+5*fm:null;
+  const lsi=pHs!=null&&pH>0?pH-pHs:null;
+  const lsiColor=lsi===null?C.sublabel:lsi>0.5?"#c62828":lsi<-0.5?"#1565c0":"#2e7d32";
+  const lsiDesc=lsi===null?"Enter all values":lsi>0.5?"Scaling tendency (↑ CaCO₃ deposition risk)":lsi<-0.5?"Corrosive tendency (↑ metal corrosion risk)":"Near neutral — balanced";
+
+  const handlePDF=()=>{
+    const lsiStr=lsi!==null?fmt(lsi,2):"—";
+    const tendency=lsi===null?"Insufficient data":lsi>0.5?"SCALING":lsi<-0.5?"CORROSIVE":"BALANCED";
+    const summary=[
+      {label:"pH (measured)",value:v.pH||"—",unit:""},
+      {label:"Temperature",value:v.temp||"—",unit:"°F"},
+      {label:"TDS",value:v.tds||"—",unit:"ppm"},
+      {label:"Saturation pH (pHs)",value:fmt(pHs,2),unit:""},
+      {label:"LSI Value",value:lsiStr,unit:""},
+      {label:"Tendency",value:tendency,unit:""},
+    ];
+    const detail=[
+      {title:"Water Analysis Inputs",rows:[
+        {label:"pH (measured)",unit:"",display:v.pH||"—",type:"input"},
+        {label:"Temperature",unit:"°F",display:v.temp||"—",type:"input"},
+        {label:"TDS",unit:"ppm",display:v.tds||"—",type:"input"},
+        {label:"Calcium Hardness",unit:"ppm CaCO₃",display:v.calcium||"—",type:"input"},
+        {label:"Total Alkalinity",unit:"ppm CaCO₃",display:v.alkalinity||"—",type:"input"},
+      ]},
+      {title:"LSI Calculation Results",rows:[
+        {label:"Saturation pH (pHs)",unit:"",display:fmt(pHs,2),type:"output"},
+        {label:"Langelier Saturation Index",unit:"",display:lsiStr,type:"output"},
+        {label:"Tendency",unit:"",display:tendency,type:"output"},
+      ]},
+    ];
+    generatePDF("Langelier Saturation Index",summary,detail);
+  };
+
+  return (
+    <div style={S.page}>
+      <Legend onReset={()=>setV(init)}/>
+      <div style={S.sectionGroup}>
+        <SectionHdr title="Water Analysis Inputs"/>
+        <InputRow label="pH (measured)" value={v.pH} onChange={set("pH")} placeholder="e.g. 7.5"/>
+        <InputRow label="Temperature" unit="°F" value={v.temp} onChange={set("temp")}/>
+        <InputRow label="TDS" unit="ppm" value={v.tds} onChange={set("tds")}/>
+        <InputRow label="Calcium Hardness" unit="ppm CaCO₃" value={v.calcium} onChange={set("calcium")}/>
+        <InputRow label="Total Alkalinity" unit="ppm CaCO₃" value={v.alkalinity} onChange={set("alkalinity")}/>
+      </div>
+      <div style={S.sectionGroup}>
+        <SectionHdr title="LSI Result"/>
+        <OutputRow label="Saturation pH (pHs)" value={pHs}/>
+        <div style={S.row}>
+          <div style={S.rowLabel}><strong>Langelier Saturation Index</strong></div>
+          <div style={S.outputCell}><span style={{...S.output,color:lsiColor,borderColor:lsiColor+"88"}}>{lsi!==null?fmt(lsi,2):"—"}</span></div>
+        </div>
+        <div style={{padding:"8px 12px",fontSize:12,color:lsiColor,fontStyle:"italic"}}>{lsiDesc}</div>
+      </div>
+      <div style={S.sectionGroup}>
+        <SectionHdr title="LSI Interpretation"/>
+        {[["LSI > +0.5","Strong scaling tendency"],["LSI +0.1 to +0.5","Mild to moderate scaling"],["LSI −0.1 to +0.1","Balanced / near neutral"],["LSI −0.5 to −0.1","Mild corrosive tendency"],["LSI < −0.5","Strong corrosive tendency"]].map(([r,d])=>(
+          <div key={r} style={{...S.row,minHeight:32}}>
+            <div style={{...S.rowLabel,fontSize:12,fontFamily:"monospace"}}>{r}</div>
+            <div style={{...S.rowUnit,minWidth:180,textAlign:"left",paddingRight:12,fontSize:11}}>{d}</div>
+          </div>
+        ))}
+      </div>
+      <PDFButton onClick={handlePDF}/>
+    </div>
+  );
+}
+
+// ─── FORMULAS ─────────────────────────────────────────────────────────────────
+function FormulasPage() {
+  const sections=[
+    {title:"Cooling Tower Formulas",items:[
+      {label:"Tower Tonnage",eq:"GPM RR ÷ 3"},{label:"GPM RR",eq:"Tower Tonnage × 3"},
+      {label:"Volume (est.)",eq:"1.5 × sump  OR  5 × RR  OR  RR × 1.83"},
+      {label:"COC",eq:"Tower TDS ÷ Make-Up TDS"},
+      {label:"Evaporation (E) gpm",eq:"1% × RR per 10°F ΔT  (adj. for % load)"},
+      {label:"Make Up (MU) gpm",eq:"(E × COC) ÷ (COC − 1)"},{label:"Blow Down (BD) gpm",eq:"E ÷ (COC − 1)"},
+      {label:"HTI hrs",eq:"(0.7 × V gal) ÷ (BD gpm × 60)  →  minutes ÷ 60 = hours"},{label:"CR rule of thumb",eq:"3 gpm per ton"},
+      {label:"E rule of thumb",eq:"3 gpm per 100 tons"},
+      {label:"Inhibitor lbs/day",eq:"((ppm ÷ COC) ÷ 120) × ((MU gpm × 1440) ÷ 1000)"},
+      {label:"Biocide slug lbs/feed",eq:"(ppm ÷ 120) × (System Volume ÷ 1000)"},
+    ]},
+    {title:"Boiler Formulas",items:[
+      {label:"Steam Load from HP",eq:"Boiler HP × 34.5 = lbs steam/hr"},
+      {label:"COC (boiler)",eq:"Boiler Conductivity ÷ FW Conductivity"},
+      {label:"Steam Flow gpm",eq:"Steam lbs/hr ÷ 500"},{label:"FW Flow gpm",eq:"Steam gpm × (COC ÷ (COC − 1))"},
+      {label:"Blow Down gpm",eq:"FW gpm ÷ (COC − 1)"},
+      {label:"% Condensate Return",eq:"(FW cond − MU cond) ÷ (FW cond − Cond. cond) × 100"},
+      {label:"MU gpm",eq:"FW gpm − Condensate gpm"},
+      {label:"Annual MU gal",eq:"MU gpm × operating min/yr"},
+      {label:"MM lbs/yr feed water",eq:"(FW gpm × op. min × 8.33) ÷ 1,000,000"},
+      {label:"Inhibitor lbs/day",eq:"((ppm ÷ COC) ÷ 120) × ((MU gpm × 1440) ÷ 1000)"},
+    ]},
+    {title:"Softener Formulas",items:[
+      {label:"Hardness conversion",eq:"17.1 ppm CaCO₃ = 1 grain"},
+      {label:"Iron as hardness equiv.",eq:"1 ppm Fe = 4 ppm CaCO₃"},
+      {label:"Total load (gpg)",eq:"(Total hardness + Iron equiv.) ÷ 17.1"},
+      {label:"Softening Capacity (gal)",eq:"(Resin ft³ × Exch. cap. × Exp. %) ÷ Total gpg"},
+      {label:"Max Peak Flow (gpm)",eq:"Service flow rate gpm/ft³ × Resin ft³"},
+      {label:"Exchange capacity default",eq:"30,000 gr/ft³ @ 15 lbs salt"},
+    ]},
+    {title:"Abbreviations",items:[
+      {label:"BD",eq:"Blow Down"},{label:"BW",eq:"Boiler Water"},
+      {label:"COC",eq:"Cycles of Concentration"},{label:"FW",eq:"Feed Water"},
+      {label:"MU",eq:"Make Up"},{label:"µmhos / Mmhos",eq:"millimhos (conductivity)"},
+      {label:"ppm",eq:"parts per million"},{label:"HTI",eq:"Holding Time Index"},
+      {label:"gpg",eq:"grains per gallon"},{label:"LSI",eq:"Langelier Saturation Index"},
+    ]},
+  ];
+  return (
+    <div style={S.page}>
+      <div style={S.infoBox}>Reference formulas for all modules. Imperial units throughout.</div>
+      {sections.map(sec=>(
+        <div key={sec.title} style={{...S.formulaCard,margin:"10px 10px 0"}}>
+          <SectionHdr title={sec.title}/>
+          {sec.items.map((f,i)=>(
+            <div key={i} style={S.formulaRow}>
+              <div style={S.formulaLabel}>{f.label}</div>
+              <div style={{...S.formulaEq,fontStyle:sec.title==="Abbreviations"?"normal":"italic"}}>{f.eq}</div>
+            </div>
+          ))}
+        </div>
+      ))}
+      <div style={S.footerNote}>Source: AWT "Basic Calculations Necessary to Survive in the Field" Parts I, II & III</div>
+    </div>
+  );
+}
+
+// ─── ROOT ─────────────────────────────────────────────────────────────────────
+const TABS=[
+  {id:"cooling",label:"🌡 Cooling"},{id:"boiler",label:"🔥 Boiler"},
+  {id:"softener",label:"💧 Softener"},{id:"lsi",label:"⚖ LSI"},
+  {id:"formulas",label:"📐 Formulas"},
+];
+
+function App() {
+  const [tab,setTab]=useState("cooling");
+  return (
+    <div style={S.app}>
+      <div style={S.header}>
+        <p style={S.headerTitle}>Water Treatment Calculator</p>
+        <p style={S.headerSub}>Xelera, Inc. · Field Reference Tool</p>
+      </div>
+      <div style={S.navBar}>
+        {TABS.map(t=><button key={t.id} style={S.navBtn(tab===t.id)} onClick={()=>setTab(t.id)}>{t.label}</button>)}
+      </div>
+      {tab==="cooling"  && <CoolingPage/>}
+      {tab==="boiler"   && <BoilerPage/>}
+      {tab==="softener" && <SoftenerPage/>}
+      {tab==="lsi"      && <LSIPage/>}
+      {tab==="formulas" && <FormulasPage/>}
+    </div>
+  );
+}
+`;
+          var transformed = Babel.transform(appSource, {
+            presets: [['react', {}]],
+            filename: 'app.jsx'
+          }).code;
+          // Prepend React hooks destructure
+          var finalCode = 'const { useState, useRef } = React;\n' + transformed;
+          // Execute
+          var fn = new Function(finalCode);
+          fn();
+          // Render
+          var root = ReactDOM.createRoot(document.getElementById('root'));
+          root.render(React.createElement(App));
+        } catch(e) {
+          document.getElementById('root').innerHTML = '<div style="padding:20px;color:red;font-family:monospace;font-size:12px;"><strong>App error:</strong><br>' + e.message + '</div>';
+          console.error('App load error:', e);
+        }
+      };
+      babelScript.onerror = function() {
+        // Fallback message if CDN fails (offline)
+        document.getElementById('root').innerHTML = '<div style="padding:30px;text-align:center;color:#1e5fa8;"><h2>Xelera Calculator</h2><p style=\"margin-top:12px;color:#666;\">Please connect to the internet for the first load, then the app will work offline.</p></div>';
+      };
+      document.head.appendChild(babelScript);
+    })();
+  </script>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('./sw.js')
+          .then(function(r) { console.log('SW registered:', r.scope); })
+          .catch(function(e) { console.log('SW error:', e); });
+      });
+    }
+  </script>
+</body>
+</html>
